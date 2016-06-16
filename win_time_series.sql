@@ -20,28 +20,7 @@
   *
   */
 
- CREATE OR REPLACE FUNCTION PDLTOOLS_SCHEMA.window_ts(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size INTERVAL, win_slide_size INTERVAL)
- RETURNS VOID AS
- $$
-
-     BEGIN
-        PERFORM PDLTOOLS_SCHEMA.__wints_window_time_series(data_tab, id, val, output_tab, win_size, win_slide_size);
-        RETURN;
-     END;
-
- $$
- LANGUAGE PLPGSQL;
-
-
- /**
-  * @brief ABC
-  *
-  * @param XYZ
-  *
-  */
-
---CREATE OR REPLACE FUNCTION PDLTOOLS_SCHEMA.__wints_window_time_series(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size bigint, win_slide_size bigint)
-CREATE OR REPLACE FUNCTION wintest.wints_window_time_series(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size bigint, win_slide_size bigint)
+CREATE OR REPLACE FUNCTION wintest.window_time_series(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size bigint, win_slide_size bigint)
 RETURNS VOID AS
 $$
     DECLARE
@@ -102,4 +81,4 @@ $$
  LANGUAGE PLPGSQL;
 
 -- Example usage:
--- select wintest.wints_window_time_series('wintest.test_tbl_01','rid','val','wintest.test_tbl_01_winout',7,5);
+-- select wintest.window_time_series('wintest.test_tbl_01','rid','val','wintest.test_tbl_01_winout',7,5);
