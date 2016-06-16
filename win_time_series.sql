@@ -10,13 +10,22 @@
  *//* ----------------------------------------------------------------------- */
 
  /**
-  * @brief ABC
+  * @brief
   * 1) Regular case: ID column is present
   + ID is contiguous
   + ID values increment by 1
   + val column is a number data type (int / bigint / float / float8 / numeric)
   *
-  * @param XYZ
+  * @param data_tab Table that contains the data. The table
+  * is expected to be in the form of (rid BIGINT, val FLOAT8)
+  * @param id Name of the column specifying data IDs.
+  * @param val Name of the column containing data values.
+  * @param win_size Number of data points that span the window.
+  * @param win_slide_size Difference between starting point of one window and the next.
+  * @param output_tab Name of the output table. The table will have following
+  * form: (win_id BIGINT, arr_rid BIGINT[], arr_val FLOAT8[]). win_id represents
+  * the window ID sequentially numbered, arr_rid is the array of rid (data ID)
+  # values in the window, and arr_val is the array of all the values for the given window.
   *
   */
 
@@ -28,7 +37,7 @@ $$
         sql TEXT;
         rid_first BIGINT;
         rid_last BIGINT;
-        ct_rows_temp_tbl BIGINT;
+        --ct_rows_temp_tbl BIGINT;
     BEGIN
         sql := 'select min(rid) from ' ||data_tab|| ';';
         EXECUTE sql INTO rid_first;
