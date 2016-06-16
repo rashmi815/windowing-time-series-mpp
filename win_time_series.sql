@@ -20,6 +20,7 @@
   *
   */
 
+DROP FUNCTION IF EXISTS wintest.window_time_series;
 CREATE OR REPLACE FUNCTION wintest.window_time_series(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size bigint, win_slide_size bigint)
 RETURNS VOID AS
 $$
