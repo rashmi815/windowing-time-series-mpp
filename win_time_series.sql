@@ -461,3 +461,70 @@ $$
 --
 -- drop table if exists test_tbl_winout_7_10;
 -- select window_time_series('test_tbl','rid','val','test_tbl_winout_7_10',7,10);
+
+DROP FUNCTION IF EXISTS wintest.window_time_series(text,text,text,text,interval,interval);
+CREATE OR REPLACE FUNCTION wintest.window_time_series(data_tab TEXT, ts TEXT, val TEXT, output_tab TEXT, win_size interval, win_slide_size interval)
+RETURNS VOID AS
+$$
+    DECLARE
+        sql TEXT;
+        rid_first BIGINT;
+        rid_last BIGINT;
+        datatype_ts TEXT;
+    BEGIN
+        -- To find out: Does any user have access to read the information_schema.columns table or is it restricted to gpadmin users?
+        sql := '
+            select data_type from information_schema.columns
+            where (table_schema || '.' || table_name) = ' ||data_tab|| ' and column_name = ' ||ts|| ';'
+        ;
+        EXECUTE sql INTO datatype_ts;
+
+        -- Assume the first timestamp in the dataset will have rid=1
+        rid_first := 1;
+
+        -- Assume that the last rid value will be the number of rows in the data table
+        -- This will be the case if the timestamp column is monotonically increasing and
+        -- the difference between every pair of consecutive timestamps is the same
+        sql := 'select count(*) from ' ||data_tab|| ';';
+        EXECUTE sql INTO rid_last;
+
+        sql :=
+            'create table ' ||output_tab|| '(win_id BIGINT, arr_ts ' ||datatype_ts||
+                '[], arr_rid BIGINT[], arr_val FLOAT8[]) distributed by (win_id);';
+        EXECUTE sql;
+
+        sql := '
+            insert into ' ||output_tab|| '
+            select
+                win_id,
+                array_agg(rid order by win_external_comp_id) as arr_rid,
+                array_agg(val order by win_external_comp_id) as arr_val
+            from
+            (
+                select * from
+                    (
+                        select *, win_start_id/' ||win_slide_size|| ' as win_id, win_internal_comp_id + win_start_id - 1 as win_external_comp_id from
+                        (
+                          select generate_series(1,' ||win_size|| ',1) as win_internal_comp_id
+                        ) ta,
+                        (
+                          select generate_series(' ||rid_first|| ',' ||rid_last|| ',' ||win_slide_size|| ') as win_start_id
+                        ) tb
+                    ) t1,
+                    (
+                        select row_number() over (order by ' ||ts|| ') as ' ||id|| ',' ||val|| ' from ' ||data_tab|| '
+                    ) t2
+                where t1.win_external_comp_id = t2.' ||id|| '
+            ) t3
+            group by win_id;
+        ';
+        EXECUTE sql;
+
+        RETURN;
+     END;
+
+ $$
+ LANGUAGE PLPGSQL;
+
+ -- drop table if exists wintest.test_tbl_winout_7_10;
+ -- select wintest.window_time_series('test_tbl','ts','val','test_tbl_winout_7_10','1 hour'::interval,'30 minutes'::interval);
