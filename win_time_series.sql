@@ -512,9 +512,9 @@ $$
                         ) tb
                     ) t1,
                     (
-                        select row_number() over (order by ' ||ts|| ') as ' ||id|| ',' ||val|| ' from ' ||data_tab|| '
+                        select row_number() over (order by ' ||ts|| ') as rid,' ||val|| ' from ' ||data_tab|| '
                     ) t2
-                where t1.win_external_comp_id = t2.' ||id|| '
+                where t1.win_external_comp_id = t2.rid'
             ) t3
             group by win_id;
         ';
@@ -526,5 +526,5 @@ $$
  $$
  LANGUAGE PLPGSQL;
 
- -- drop table if exists wintest.test_tbl_winout_7_10;
- -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','test_tbl_winout_7_10','1 hour'::interval,'30 minutes'::interval);
+ -- drop table if exists wintest.test_tbl_winout_1hr_30min;
+ -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','test_tbl_winout_1hr_30min','1 hour'::interval,'30 minutes'::interval);
