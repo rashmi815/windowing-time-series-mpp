@@ -475,7 +475,7 @@ $$
         -- To find out: Does any user have access to read the information_schema.columns table or is it restricted to gpadmin users?
         sql := '
             select data_type from information_schema.columns
-            where (table_schema || ' ||'''.'''|| ' || table_name) = ' ||data_tab|| ' and column_name = ' ||ts|| ';'
+            where (table_schema || ' ||'''.'''|| ' || table_name) = ''' ||data_tab|| ''' and column_name = ''' ||ts|| ''';'
         ;
         EXECUTE sql INTO datatype_ts;
 
@@ -519,7 +519,7 @@ $$
             group by win_id;
         ';
         EXECUTE sql;
-        
+
         RETURN;
      END;
 
@@ -527,4 +527,4 @@ $$
  LANGUAGE PLPGSQL;
 
  -- drop table if exists wintest.test_tbl_winout_7_10;
- -- select wintest.window_time_series('test_tbl','ts','val','test_tbl_winout_7_10','1 hour'::interval,'30 minutes'::interval);
+ -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','test_tbl_winout_7_10','1 hour'::interval,'30 minutes'::interval);
