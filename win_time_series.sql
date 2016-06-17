@@ -15,6 +15,9 @@
   + ID is contiguous
   + ID values increment by 1
   + val column is a number data type (int / bigint / float / float8 / numeric)
+  * 2) TS column is present but ID may not be
+  + Difference between any two consecutive TS values are all the same
+  + val column is a number data type (int / bigint / float / float8 / numeric)
   *
   * @param data_tab Table that contains the data. The table
   * is expected to be in the form of (rid BIGINT, val FLOAT8)
@@ -37,30 +40,12 @@ $$
         sql TEXT;
         rid_first BIGINT;
         rid_last BIGINT;
-        --ct_rows_temp_tbl BIGINT;
     BEGIN
         sql := 'select min(rid) from ' ||data_tab|| ';';
         EXECUTE sql INTO rid_first;
 
         sql := 'select max(rid) from ' ||data_tab|| ';';
         EXECUTE sql INTO rid_last;
-
-        -- EXECUTE 'drop table if exists temp_pdltools_win_comp_id_tbl;';
-        -- sql := 'create temp table temp_pdltools_win_comp_id_tbl as
-        --     select *, win_start_id/' ||win_slide_size|| ' as win_id, win_internal_comp_id + win_start_id - 1 as win_external_comp_id from
-        --     (
-        --       select generate_series(1,' ||win_size|| ',1) as win_internal_comp_id
-        --     ) t1,
-        --     (
-        --       select generate_series(' ||rid_first|| ',' ||rid_last|| ',' ||win_slide_size|| ') as win_start_id
-        --     ) t2
-        -- distributed by (win_id,win_internal_comp_id);
-        -- ';
-        -- EXECUTE sql;
-        --
-        -- -- Debug the temp table
-        -- EXECUTE 'select count(*) from temp_pdltools_win_comp_id_tbl;' INTO ct_rows_temp_tbl;
-        -- RAISE NOTICE 'Count of rows in the temp table: %', ct_rows_temp_tbl;
 
         sql := 'create table ' ||output_tab|| '(win_id BIGINT, arr_rid BIGINT[], arr_val FLOAT8[]) distributed by (win_id);';
         EXECUTE sql;
@@ -91,8 +76,6 @@ $$
             group by win_id;
         ';
         EXECUTE sql;
-
-        -- EXECUTE 'drop table if exists temp_pdltools_win_comp_id_tbl;';
 
         RETURN;
      END;
@@ -469,12 +452,12 @@ $$
 -- 359  |  2016-01-10 02:59:00  |  1.35643446504023
 -- 360  |  2016-01-10 02:59:30  |  1.27845909572785
 -- \.
-
+--
 -- drop table if exists test_tbl_winout_7_1;
 -- select window_time_series('test_tbl','rid','val','test_tbl_winout_7_1',7,1);
-
+--
 -- drop table if exists test_tbl_winout_7_5;
 -- select window_time_series('test_tbl','rid','val','test_tbl_winout_7_5',7,5);
-
+--
 -- drop table if exists test_tbl_winout_7_10;
 -- select window_time_series('test_tbl','rid','val','test_tbl_winout_7_10',7,10);
