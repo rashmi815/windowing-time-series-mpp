@@ -514,7 +514,7 @@ $$
                     (
                         select row_number() over (order by ' ||ts|| ') as rid,' ||val|| ' from ' ||data_tab|| '
                     ) t2
-                where t1.win_external_comp_id = t2.rid'
+                where t1.win_external_comp_id = t2.rid
             ) t3
             group by win_id;
         ';
