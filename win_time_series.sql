@@ -70,9 +70,9 @@ $$
                         ) tb
                     ) t1,
                     (
-                        select ' ||id|| ',' ||val|| ' from ' ||data_tab|| '
+                        select ' ||id|| ' as rid,' ||val|| ' as val from ' ||data_tab|| '
                     ) t2
-                where t1.win_external_comp_id = t2.' ||id|| '
+                where t1.win_external_comp_id = t2.rid
             ) t3
             group by win_id;
         ';
@@ -504,8 +504,12 @@ $$
         ;
         EXECUTE sql INTO diff_ts;
 
+        -- Assumes that there are a whole number of rows of data in a window of win_size
+        -- i.e that the division below will not result in a fraction amount
         win_size_rows := win_size / diff_ts;
 
+        -- Assumes that there are a whole number of rows of data in a window of win_slide_size
+        -- i.e that the division below will not result in a fraction amount
         win_slide_size_rows := win_slide_size / diff_ts;
 
         sql :=
