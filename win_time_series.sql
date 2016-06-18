@@ -18,6 +18,7 @@
   * 2) TS column is present but ID may not be
   + Difference between any two consecutive TS values are all the same
   + val column is a number data type (int / bigint / float / float8 / numeric)
+  + win_size and win_slide_size cover a whole number of rows of data
   *
   * @param data_tab Table that contains the data. The table
   * is expected to be in the form of (rid BIGINT, val FLOAT8)
