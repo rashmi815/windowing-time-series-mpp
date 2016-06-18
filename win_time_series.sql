@@ -492,7 +492,11 @@ $$
         sql := 'select count(*) from ' ||data_tab|| ';';
         EXECUTE sql INTO rid_last;
 
-        sql := 'select lead(' ||ts|| ',1)-' ||ts|| ' as diff_ts from (select ' ||ts|| ' from ' ||data_tab|| ' order by ' ||ts|| ' limit 2) t1;';
+        sql := '
+            select ' ||ts|| ', lead(' ||ts|| ',1)-' ||ts|| ' over (order by ' ||ts|| ') as diff_ts
+            from (select ' ||ts|| ' from ' ||data_tab|| ' order by ' ||ts|| ' limit 2) t1
+            order by 1 limit 1;'
+        ;
         EXECUTE sql INTO diff_ts;
 
         win_size_rows := win_size / diff_ts;
