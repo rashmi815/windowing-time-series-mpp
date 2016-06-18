@@ -482,6 +482,7 @@ $$
             where (table_schema || ' ||'''.'''|| ' || table_name) = ''' ||data_tab|| ''' and column_name = ''' ||ts|| ''';'
         ;
         EXECUTE sql INTO datatype_ts;
+        RAISE NOTICE 'datatype_ts = %', datatype_ts;
 
         -- Assume the first timestamp in the dataset will have rid=1
         rid_first := 1;
@@ -493,19 +494,23 @@ $$
         EXECUTE sql INTO rid_last;
 
         sql := '
-            select ' ||ts|| ', lead(' ||ts|| ',1) over (order by ' ||ts|| ') - ' ||ts|| ' as diff_ts
-            from (select ' ||ts|| ' from ' ||data_tab|| ' order by ' ||ts|| ' limit 2) t1
-            order by 1 limit 1;'
+            select diff_ts from (
+                select ' ||ts|| ', lead(' ||ts|| ',1) over (order by ' ||ts|| ') - ' ||ts|| ' as diff_ts
+                from (
+                    select ' ||ts|| ' from ' ||data_tab|| ' order by ' ||ts|| ' limit 2
+                ) t1
+                order by 1 limit 1
+            ) t2;'
         ;
         EXECUTE sql INTO diff_ts;
 
         win_size_rows := win_size / diff_ts;
 
-        win_slide_size_rows := win_slide_size_rows / diff_ts;
+        win_slide_size_rows := win_slide_size / diff_ts;
 
         sql :=
-            'create table ' ||output_tab|| '(win_id BIGINT, arr_ts ' ||datatype_ts||
-                '[], arr_rid BIGINT[], arr_val FLOAT8[]) distributed by (win_id);';
+            'create table ' ||output_tab|| '(win_id BIGINT, arr_rid BIGINT[], arr_ts ' ||datatype_ts||
+                '[], arr_val FLOAT8[]) distributed by (win_id);';
         EXECUTE sql;
 
         sql := '
@@ -513,6 +518,7 @@ $$
             select
                 win_id,
                 array_agg(rid order by win_external_comp_id) as arr_rid,
+                array_agg(ts order by win_external_comp_id) as arr_ts,
                 array_agg(val order by win_external_comp_id) as arr_val
             from
             (
@@ -527,7 +533,7 @@ $$
                         ) tb
                     ) t1,
                     (
-                        select row_number() over (order by ' ||ts|| ') as rid,' ||val|| ' from ' ||data_tab|| '
+                        select row_number() over (order by ' ||ts|| ') as rid,' ||ts|| ' as ts,' ||val|| ' as val from ' ||data_tab|| '
                     ) t2
                 where t1.win_external_comp_id = t2.rid
             ) t3
@@ -542,4 +548,4 @@ $$
  LANGUAGE PLPGSQL;
 
  -- drop table if exists wintest.test_tbl_winout_1hr_30min;
- -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','test_tbl_winout_1hr_30min','1 hour'::interval,'30 minutes'::interval);
+ -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','wintest.test_tbl_winout_1hr_30min','1 hour'::interval,'30 minutes'::interval);
