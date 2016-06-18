@@ -471,6 +471,9 @@ $$
         rid_first BIGINT;
         rid_last BIGINT;
         datatype_ts TEXT;
+        diff_ts INTERVAL;
+        win_size_rows BIGINT;
+        win_slide_size_rows BIGINT;
     BEGIN
         -- To find out: Does any user have access to read the information_schema.columns table or is it restricted to gpadmin users?
         sql := '
@@ -488,6 +491,13 @@ $$
         sql := 'select count(*) from ' ||data_tab|| ';';
         EXECUTE sql INTO rid_last;
 
+        sql := 'select lead(ts,1)-ts as diff_ts from (select ts from data_tab order by ts limit 2) t1;'
+        EXECUTE sql INTO diff_ts;
+
+        win_size_rows := win_size / diff_ts;
+
+        win_slide_size_rows := win_slide_size_rows / diff_ts;
+
         sql :=
             'create table ' ||output_tab|| '(win_id BIGINT, arr_ts ' ||datatype_ts||
                 '[], arr_rid BIGINT[], arr_val FLOAT8[]) distributed by (win_id);';
@@ -503,12 +513,12 @@ $$
             (
                 select * from
                     (
-                        select *, win_start_id/' ||win_slide_size|| ' as win_id, win_internal_comp_id + win_start_id - 1 as win_external_comp_id from
+                        select *, win_start_id/' ||win_slide_size_rows|| ' as win_id, win_internal_comp_id + win_start_id - 1 as win_external_comp_id from
                         (
-                          select generate_series(1,' ||win_size|| ',1) as win_internal_comp_id
+                          select generate_series(1,' ||win_size_rows|| ',1) as win_internal_comp_id
                         ) ta,
                         (
-                          select generate_series(' ||rid_first|| ',' ||rid_last|| ',' ||win_slide_size|| ') as win_start_id
+                          select generate_series(' ||rid_first|| ',' ||rid_last|| ',' ||win_slide_size_rows|| ') as win_start_id
                         ) tb
                     ) t1,
                     (
