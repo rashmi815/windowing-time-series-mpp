@@ -553,3 +553,128 @@ $$
 
  -- drop table if exists wintest.test_tbl_winout_1hr_30min;
  -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','wintest.test_tbl_winout_1hr_30min','1 hour'::interval,'30 minutes'::interval);
+
+
+-- Prototype / test for non-integer divisible window sizes and non-regular time series
+select t1.aa as aa_t1, t2.aa as aa_t2, bb, cc from
+    (select * from (select generate_series(0,10,1) as aa) ta, (select generate_series(425,1275,425)/100.0 as bb) tb where aa < bb) t1,
+    (select * from (select generate_series(0,10,1) as aa) tc, (select generate_series(0,850,425)/100.0 as cc) td where aa >= cc) t2
+where t1.aa = t2.aa
+order by t1.aa, t2.aa;
+--
+select * from (
+    select
+        bb,
+        lead(bb,1) over (order by bb) as cc
+    from (
+        select generate_series(0,1275,425)/100.0 as bb
+    ) tb
+) tc
+where cc is not null
+;
+-- Without incorporating any sliding here
+select * from
+(
+    select generate_series(0,10,1) as aa
+) ta,
+(
+    select * from (
+        select
+            bb,
+            lead(bb,1) over (order by bb) as cc
+        from (
+            select generate_series(0,1275,425)/100.0 as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where aa >= bb and aa < cc
+order by aa;
+-- With incorporating sliding here
+select * from
+(
+    select generate_series(0,10,1) as aa
+) ta,
+(
+    select * from (
+        select
+            bb,
+            bb+4.25 as cc
+        from (
+            select generate_series(0,1000,225)/100.0 as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where aa >= bb and aa < cc
+order by bb,cc,aa;
+--Introduce window id now
+select win_id, aa, bb, cc from
+(
+    select generate_series(0,10,1) as aa
+) ta,
+(
+    select row_number() over (order by bb) - 1 as win_id, * from (
+        select
+            bb,
+            bb+4.25 as cc
+        from (
+            select generate_series(0,1000,225)/100.0 as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where aa >= bb and aa < cc
+order by win_id,aa;
+--The above works but now need to make it for timestamp column
+select win_id, rid, aa, bb, cc from
+(
+    select row_number() over (order by aa) as rid, * from (
+        select generate_series(
+            '2016-01-10 00:00:00'::timestamp without time zone,
+            '2016-01-10 02:59:30'::timestamp without time zone,
+            '30 seconds'::interval
+        ) as aa
+    ) ta1
+) ta,
+(
+    select row_number() over (order by bb) - 1 as win_id, * from (
+        select
+            bb,
+            bb+'4.25 minutes'::interval as cc
+        from (
+            select generate_series(
+                '2016-01-10 00:00:00'::timestamp without time zone,
+                '2016-01-10 00:10:00'::timestamp without time zone,
+                '2.25 minutes'::interval
+            ) as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where aa >= bb and aa < cc
+order by win_id,aa;
+--Try this on the test table now
+select win_id, rid, ts, val, bb, cc from
+(
+    select row_number() over (order by ts) as rid, * from (
+        select ts, val from wintest.test_tbl_01
+    ) ta1
+) ta,
+(
+    select row_number() over (order by bb) - 1 as win_id, * from (
+        select
+            bb,
+            bb+'4.25 minutes'::interval as cc
+        from (
+            select generate_series(
+                '2016-01-10 00:00:00'::timestamp without time zone,
+                '2016-01-10 00:10:00'::timestamp without time zone,
+                '2.25 minutes'::interval
+            ) as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where ts >= bb and ts < cc
+order by win_id,ts;
