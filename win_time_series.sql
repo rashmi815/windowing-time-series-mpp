@@ -33,6 +33,14 @@
   *
   */
 
+--============================
+--Notes for documentation
+--============================
+-- *) Any rows with NULLs in the timestamp column will be ignored
+-- *) If ending rid or ts value occurs before the end of the dataset, the last window for which aggregate is provided may incorporate
+-- rows past the end row stated in the input if the window size extends past that end row -- give example here
+--============================
+
 DROP FUNCTION IF EXISTS window_time_series(text,text,text,text,bigint,bigint);
 CREATE OR REPLACE FUNCTION window_time_series(data_tab TEXT, id TEXT, val TEXT, output_tab TEXT, win_size bigint, win_slide_size bigint)
 RETURNS VOID AS
@@ -555,6 +563,97 @@ $$
  -- select wintest.window_time_series('wintest.test_tbl_01','ts','val','wintest.test_tbl_winout_1hr_30min','1 hour'::interval,'30 minutes'::interval);
 
 
+DROP FUNCTION IF EXISTS wintest.window_time_series_gen(text,text,text,text,timestamp without time zone, timestamp without time zone,interval,interval);
+CREATE OR REPLACE FUNCTION wintest.window_time_series_gen(
+    data_tab TEXT,
+    ts TEXT,
+    val TEXT,
+    output_tab TEXT,
+    start_time timestamp without time zone,
+    end_time timestamp without time zone,
+    win_size interval,
+    win_slide_size interval
+)
+RETURNS VOID AS
+$$
+    DECLARE
+        sql TEXT;
+        datatype_ts TEXT;
+
+    BEGIN
+         -- To find out: Does any user have access to read the information_schema.columns table or is it restricted to gpadmin users?
+        sql := '
+           select data_type from information_schema.columns
+           where (table_schema || ' ||'''.'''|| ' || table_name) = ''' ||data_tab|| ''' and column_name = ''' ||ts|| ''';'
+        ;
+        EXECUTE sql INTO datatype_ts;
+        RAISE NOTICE 'datatype_ts = %', datatype_ts;
+
+        sql :=
+            'create table ' ||output_tab|| '(win_id BIGINT, win_start_time ' ||datatype_ts|| ', win_end_time ' ||datatype_ts|| ',
+            arr_rid BIGINT[], arr_ts ' ||datatype_ts|| '[], arr_val FLOAT8[]) distributed by (win_id);';
+        EXECUTE sql;
+
+        sql := '
+            insert into ' ||output_tab|| '
+            select
+                win_id,
+                bb as win_start_time,
+                cc as win_end_time,
+                array_agg(rid order by ts) as arr_rid,
+                array_agg(ts order by ts) as arr_ts,
+                array_agg(val order by ts) as arr_val
+            from (
+                select win_id, rid, ts, val, bb, cc from
+                (
+                    select row_number() over (order by ts) as rid, * from (
+                        select ' ||ts|| ' as ts, ' ||val|| ' as val from ' ||data_tab|| '
+                    ) ta1
+                ) ta,
+                (
+                    select row_number() over (order by bb) - 1 as win_id, * from (
+                        select
+                            bb,
+                            bb+''' ||win_size|| '''::interval as cc
+                        from (
+                            select generate_series(
+                                ''' ||start_time|| '''::timestamp without time zone,
+                                ''' ||end_time|| '''::timestamp without time zone,
+                                ''' ||win_slide_size|| '''::interval
+                            ) as bb
+                        ) tb
+                    ) tc
+                    where cc is not null
+                ) td
+                where ts >= bb and ts < cc
+            ) te
+            group by win_id, bb, cc;
+        ';
+        EXECUTE sql;
+
+        RETURN;
+    END;
+$$
+LANGUAGE PLPGSQL;
+
+-- Example code to test:
+-- drop table if exists wintest.test_tbl_winout_1hr_30min;
+-- select wintest.window_time_series_gen(
+--     'wintest.test_tbl_01',
+--     'ts',
+--     'val',
+--     'wintest.test_tbl_gen_winout_4p25min_2p25min',
+--     '2016-01-10 00:00:00'::timestamp without time zone,
+--     '2016-01-10 00:11:00'::timestamp without time zone,
+--     '4.25 minutes'::interval,
+--     '2.25 minutes'::interval
+-- );
+-- select * from wintest.test_tbl_gen_winout_4p25min_2p25min order by win_id;
+
+
+--============================================
+-- Prototyping space below
+--============================================
 -- Prototype / test for non-integer divisible window sizes and non-regular time series
 select t1.aa as aa_t1, t2.aa as aa_t2, bb, cc from
     (select * from (select generate_series(0,10,1) as aa) ta, (select generate_series(425,1275,425)/100.0 as bb) tb where aa < bb) t1,
@@ -678,3 +777,27 @@ select win_id, rid, ts, val, bb, cc from
 ) td
 where ts >= bb and ts < cc
 order by win_id,ts;
+--See if this form of code will work with row numbers too and not just time stamps
+--If so the original code that worked for row numbers can be replaced with the above more general version
+select win_id, rid, ts, val, bb, cc from
+(
+    select rid, ts, val from wintest.test_tbl_01
+) ta,
+(
+    select row_number() over (order by bb) - 1 as win_id, * from (
+        select
+            bb,
+            bb+7::bigint as cc
+        from (
+            select generate_series(
+                1,
+                25,
+                3
+            ) as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where rid >= bb and rid < cc
+order by win_id,rid;
+--Yes, above seems to work - should change code to incorporate this
