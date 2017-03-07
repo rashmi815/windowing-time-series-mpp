@@ -650,6 +650,7 @@ LANGUAGE PLPGSQL;
 -- );
 -- select * from wintest.test_tbl_gen_winout_4p25min_2p25min order by win_id;
 
+--Add parition columns
 
 --============================================
 -- Prototyping space below
@@ -801,3 +802,27 @@ select win_id, rid, ts, val, bb, cc from
 where rid >= bb and rid < cc
 order by win_id,rid;
 --Yes, above seems to work - should change code to incorporate this
+--Check code with partition columns in input
+select pid, win_id, rid, ts, val, bb, cc from
+(
+    select row_number() over (partition by pid order by ts) as rid, * from (
+        select row_number() over (order by ts)/10 as pid, ts, val from wintest.test_tbl_01
+    ) ta1
+) ta,
+(
+    select row_number() over (order by bb) - 1 as win_id, * from (
+        select
+            bb,
+            bb+'4.25 minutes'::interval as cc
+        from (
+            select generate_series(
+                '2016-01-10 00:00:00'::timestamp without time zone,
+                '2016-01-10 00:10:00'::timestamp without time zone,
+                '2.25 minutes'::interval
+            ) as bb
+        ) tb
+    ) tc
+    where cc is not null
+) td
+where ts >= bb and ts < cc
+order by pid,win_id,ts;
